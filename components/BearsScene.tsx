@@ -8,6 +8,7 @@ interface BearsSceneProps {
   closeness: number; // 0–5
   isHugging: boolean;
   onHugComplete?: () => void;
+  onReady?: () => void;
 }
 
 const FRAME_COUNT = 81;
@@ -37,7 +38,7 @@ function bearLeft(closeness: number, side: "male" | "female"): number {
     : 90 - closeness * 7.5;
 }
 
-export function BearsScene({ closeness, isHugging, onHugComplete }: BearsSceneProps) {
+export function BearsScene({ closeness, isHugging, onHugComplete, onReady }: BearsSceneProps) {
   const [action, setAction] = useState<AnimationAction>("idle");
   const [hugPlaying, setHugPlaying] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
@@ -48,6 +49,16 @@ export function BearsScene({ closeness, isHugging, onHugComplete }: BearsScenePr
   const heartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const idleLoadedCount = useRef(0);
+  const readyFired = useRef(false);
+
+  const handleIdleLoaded = useCallback(() => {
+    idleLoadedCount.current++;
+    if (idleLoadedCount.current >= 2 && !readyFired.current) {
+      readyFired.current = true;
+      onReady?.();
+    }
+  }, [onReady]);
 
   useEffect(() => {
     if (closeness === prev.current) return;
@@ -217,6 +228,7 @@ export function BearsScene({ closeness, isHugging, onHugComplete }: BearsScenePr
             frameCount={FRAME_COUNT}
             fps={FPS}
             loop
+            onLoaded={handleIdleLoaded}
             className="h-full w-full"
             alt="Erkek ayıcık idle"
           />
@@ -262,6 +274,7 @@ export function BearsScene({ closeness, isHugging, onHugComplete }: BearsScenePr
             frameCount={FRAME_COUNT}
             fps={FPS}
             loop
+            onLoaded={handleIdleLoaded}
             className="h-full w-full"
             alt="Dişi ayıcık idle"
           />

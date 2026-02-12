@@ -10,6 +10,7 @@ export interface FrameAnimatorProps {
   holdLastFrame?: boolean;
   paused?: boolean;
   onComplete?: () => void;
+  onLoaded?: () => void;
   className?: string;
   alt?: string;
 }
@@ -22,6 +23,7 @@ function FrameAnimatorInner({
   holdLastFrame = false,
   paused = false,
   onComplete,
+  onLoaded,
   className = "",
   alt = "Animation",
 }: FrameAnimatorProps) {
@@ -49,6 +51,7 @@ function FrameAnimatorInner({
         if (!cancelled && count === frameCount) {
           imagesRef.current = imgs;
           setLoaded(true);
+          onLoaded?.();
         }
       };
       img.onerror = () => {

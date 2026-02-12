@@ -10,18 +10,47 @@ import { QuestionCard } from "@/components/QuestionCard";
 export default function ValentinePage() {
   const [state, setState] = useState<AppState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [assetsReady, setAssetsReady] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioStarted = useRef(false);
+  const loadedFlags = useRef({ bg: false, mp3: false, bears: false });
+
+  const checkAllLoaded = useCallback(() => {
+    const f = loadedFlags.current;
+    if (f.bg && f.mp3 && f.bears) setAssetsReady(true);
+  }, []);
 
   useShiftF5Reset();
 
-  // Müzik: 2s sonra fade-in ile %50 volume'a ulaş
+  // BG preload
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/bg.png";
+    img.onload = () => {
+      loadedFlags.current.bg = true;
+      checkAllLoaded();
+    };
+    img.onerror = () => {
+      loadedFlags.current.bg = true;
+      checkAllLoaded();
+    };
+  }, [checkAllLoaded]);
+
+  // Müzik: preload + 2s sonra fade-in ile %50 volume'a ulaş
   useEffect(() => {
     const audio = new Audio("/seviyora.mp3");
     audio.loop = true;
     audio.volume = 0;
     audioRef.current = audio;
+
+    const onCanPlay = () => {
+      loadedFlags.current.mp3 = true;
+      checkAllLoaded();
+    };
+    audio.addEventListener("canplaythrough", onCanPlay, { once: true });
+    // Fallback: 5s sonra mp3 yüklenmediyse de geç
+    const fallback = setTimeout(onCanPlay, 5000);
 
     const startMusic = () => {
       if (audioStarted.current) return;
@@ -41,7 +70,6 @@ export default function ValentinePage() {
             if (step >= steps) clearInterval(fadeTimer);
           }, interval);
         }).catch(() => {
-          // Autoplay engellendiyse tekrar denenmesi için flag'i geri al
           audioStarted.current = false;
         });
       }, 2000);
@@ -57,11 +85,13 @@ export default function ValentinePage() {
     events.forEach((e) => document.addEventListener(e, handler, { once: true }));
 
     return () => {
+      clearTimeout(fallback);
+      audio.removeEventListener("canplaythrough", onCanPlay);
       events.forEach((e) => document.removeEventListener(e, handler));
       audio.pause();
       audio.src = "";
     };
-  }, []);
+  }, [checkAllLoaded]);
 
   useEffect(() => {
     setState(loadState());
@@ -118,6 +148,11 @@ export default function ValentinePage() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
+  const handleBearsReady = useCallback(() => {
+    loadedFlags.current.bears = true;
+    checkAllLoaded();
+  }, [checkAllLoaded]);
+
   const resetApp = () => {
     clearState();
     window.location.reload();
@@ -128,7 +163,10 @@ export default function ValentinePage() {
   if (!state) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-100 to-red-100">
-        <p className="text-xl text-pink-400 animate-pulse">Yükleniyor…</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-valentine-pink border-t-transparent" />
+          <p className="text-lg text-pink-400 animate-pulse">Yükleniyor…</p>
+        </div>
       </div>
     );
   }
@@ -157,6 +195,16 @@ export default function ValentinePage() {
   // Main scene: questions + bears (hug & heart de burada)
   return (
     <div className="relative flex h-screen flex-col overflow-hidden">
+      {/* Loading overlay — tüm asset'ler yüklenene kadar */}
+      {!assetsReady && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-pink-100 to-red-100 transition-opacity duration-700">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-valentine-pink border-t-transparent" />
+            <p className="text-lg font-medium text-pink-400 animate-pulse">Yükleniyor…</p>
+          </div>
+        </div>
+      )}
+
       {/* Arka plan — %20 yakınlaştırılmış, dikey ortalı */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -185,6 +233,7 @@ export default function ValentinePage() {
         <BearsScene
           closeness={state.closeness}
           isHugging={state.scene === "hug"}
+          onReady={handleBearsReady}
         />
       </section>
 
