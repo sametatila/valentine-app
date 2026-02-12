@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated assets (large files)
+/generated/
+
+# wrangler
+.wrangler/
+.dev.vars
+
+# sub-project node_modules
+cf-worker/node_modules/
+scripts/node_modules/
+
+# sub-project env & lock files
+scripts/.env
+scripts/package-lock.json
+
+# claude
+.claude/
+
+# windows artifacts
+nul
+Thumbs.db

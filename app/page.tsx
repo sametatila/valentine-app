@@ -1,65 +1,204 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useCallback, useRef } from "react";
+import { AppState, QUESTIONS, INITIAL_STATE } from "@/types";
+import { loadState, saveState, clearState } from "@/lib/storage";
+import { useShiftF5Reset } from "@/lib/useShiftF5Reset";
+import { BearsScene } from "@/components/BearsScene";
+import { QuestionCard } from "@/components/QuestionCard";
+
+export default function ValentinePage() {
+  const [state, setState] = useState<AppState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioStarted = useRef(false);
+
+  useShiftF5Reset();
+
+  // Müzik: 2s sonra fade-in ile %50 volume'a ulaş
+  useEffect(() => {
+    const audio = new Audio("/seviyora.mp3");
+    audio.loop = true;
+    audio.volume = 0;
+    audioRef.current = audio;
+
+    const startMusic = () => {
+      if (audioStarted.current) return;
+      audioStarted.current = true;
+
+      setTimeout(() => {
+        audio.play().then(() => {
+          const fadeDuration = 2000;
+          const steps = 40;
+          const targetVolume = 0.5;
+          const interval = fadeDuration / steps;
+          let step = 0;
+
+          const fadeTimer = setInterval(() => {
+            step++;
+            audio.volume = Math.min(targetVolume, (step / steps) * targetVolume);
+            if (step >= steps) clearInterval(fadeTimer);
+          }, interval);
+        }).catch(() => {
+          // Autoplay engellendiyse tekrar denenmesi için flag'i geri al
+          audioStarted.current = false;
+        });
+      }, 2000);
+    };
+
+    // Autoplay dene, engellenirse ilk etkileşimde başlat
+    startMusic();
+    const events = ["click", "touchstart", "keydown"] as const;
+    const handler = () => {
+      startMusic();
+      events.forEach((e) => document.removeEventListener(e, handler));
+    };
+    events.forEach((e) => document.addEventListener(e, handler, { once: true }));
+
+    return () => {
+      events.forEach((e) => document.removeEventListener(e, handler));
+      audio.pause();
+      audio.src = "";
+    };
+  }, []);
+
+  useEffect(() => {
+    setState(loadState());
+  }, []);
+
+  useEffect(() => {
+    if (state) saveState(state);
+  }, [state]);
+
+  const handleAnswer = useCallback(
+    (positive: boolean) => {
+      if (busy || !state) return;
+      setBusy(true);
+
+      const willClosenessChange = positive || state.step === 4;
+
+      setState((prev) => {
+        if (!prev) return prev;
+        const newAnswers = [...prev.answers];
+        newAnswers[prev.step] = positive;
+
+        const isPositive = positive || prev.step === 4;
+        const newCloseness = isPositive ? prev.closeness + 1 : prev.closeness;
+        const newStep = prev.step + 1;
+
+        let newScene = prev.scene;
+        if (newStep > 4) {
+          newScene = newCloseness === 5 ? "hug" : "done_nonperfect";
+        }
+
+        return {
+          ...prev,
+          step: newStep,
+          answers: newAnswers,
+          closeness: newCloseness,
+          scene: newScene,
+        };
+      });
+
+      // closeness değişmezse walk/transition yok → kısa bekleme yeterli
+      setTimeout(() => setBusy(false), willClosenessChange ? 5200 : 600);
+    },
+    [busy, state],
+  );
+
+  // --- long-press title to reset (2 s) ---
+  const onTitleDown = () => {
+    longPressTimer.current = setTimeout(() => {
+      clearState();
+      window.location.reload();
+    }, 2000);
+  };
+  const onTitleUp = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const resetApp = () => {
+    clearState();
+    window.location.reload();
+  };
+
+  // ====== RENDER ======
+
+  if (!state) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-100 to-red-100">
+        <p className="text-xl text-pink-400 animate-pulse">Yükleniyor…</p>
+      </div>
+    );
+  }
+
+  // Non-perfect ending
+  if (state.scene === "done_nonperfect") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-pink-50 to-gray-100 p-8 text-center">
+        <h1 className="mb-4 text-4xl font-bold text-gray-700 sm:text-5xl">
+          Hıııııh çok güzel oldu. Afferim size!
+        </h1>
+        <p className="mb-8 max-w-md text-lg text-gray-500">
+          İlla deneyecen he mi :) Ben sana yol göstermişim zaten, daşların üzerinden niye gidiyon totosunu yediğim.
+        </p>
+        <button
+          type="button"
+          onClick={resetApp}
+          className="rounded-full bg-gray-600 px-8 py-3 font-bold text-white shadow-lg transition hover:scale-105"
+        >
+          Baştan Başla
+        </button>
+      </div>
+    );
+  }
+
+  // Main scene: questions + bears (hug & heart de burada)
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="relative flex h-screen flex-col overflow-hidden">
+      {/* Arka plan — %20 yakınlaştırılmış, dikey ortalı */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/bg.png"
+        alt=""
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover object-bottom"
+        style={{ transform: "scale(1.2)", transformOrigin: "center center" }}
+        draggable={false}
+      />
+      {/* Header */}
+      <header className="py-6 text-center">
+        <h1
+          className="cursor-pointer text-3xl font-bold text-valentine-red select-none sm:text-5xl"
+          onMouseDown={onTitleDown}
+          onMouseUp={onTitleUp}
+          onMouseLeave={onTitleUp}
+          onTouchStart={onTitleDown}
+          onTouchEnd={onTitleUp}
+        >
+          İki Totonun Hikayesi
+        </h1>
+      </header>
+
+      {/* Bears — tüm kalan alanı kaplar, hug + heart de burada */}
+      <section className="relative flex-1">
+        <BearsScene
+          closeness={state.closeness}
+          isHugging={state.scene === "hug"}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </section>
+
+      {/* Question card — absolute, layout akışını etkilemez */}
+      {state.scene === "questions" && state.step <= 4 && (
+        <div className="absolute inset-x-0 bottom-0 pb-8">
+          <QuestionCard
+            question={QUESTIONS[state.step]}
+            currentStep={state.step}
+            onAnswer={handleAnswer}
+            disabled={busy}
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      )}
     </div>
   );
 }

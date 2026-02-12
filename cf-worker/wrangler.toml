@@ -1,0 +1,12 @@
+name = "valentine-flux-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[ai]
+binding = "AI"
+
+[vars]
+FLUX_MODEL = "@cf/black-forest-labs/flux-2-klein-4b"
+
+[observability]
+enabled = true

@@ -1,0 +1,3 @@
+Animate this 2D pastel red and pink heart shape starting very small in the center and smoothly growing larger until it nearly fills the entire frame but does not exceed or leave the frame boundaries. Ease in at the start, ease out at the end with a gentle soft bounce. The heart stays centered the entire time. Solid white background, absolutely no other objects, no characters, no text, no particles, no sparkles, no extra decorations. Keep the clean 2D vector style with smooth rounded edges, no style changes, no camera movement. 5 seconds.
+---
+objects, characters, text, particles, sparkles, decorations, props, animals, background change, camera zoom, camera pan, camera movement, exceeding frame, leaving frame, design change, style change, wobbling lines

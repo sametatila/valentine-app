@@ -1,0 +1,3 @@
+Animate this 2D chibi teddy bear character with thick black outline with subtle idle motion: gentle breathing chest movement, slight head tilt, small eye blink, tiny body sway. Keep the character design and outline completely stable, do not change anything about the character. Solid white background, absolutely no other objects, no extra characters, no text, no particles, no decorations. No camera movement, no camera zoom, no camera pan. Smooth loopable animation, 5 seconds.
+---
+design change, style change, warping, jittery outlines, camera movement, camera zoom, camera pan, background change, extra props, objects, particles, text, decorations, additional characters
