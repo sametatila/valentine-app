@@ -14,11 +14,11 @@ export default function ValentinePage() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioStarted = useRef(false);
-  const loadedFlags = useRef({ bg: false, mp3: false, bears: false });
+  const loadedFlags = useRef({ bg: false, bears: false });
 
   const checkAllLoaded = useCallback(() => {
     const f = loadedFlags.current;
-    if (f.bg && f.mp3 && f.bears) setAssetsReady(true);
+    if (f.bg && f.bears) setAssetsReady(true);
   }, []);
 
   useShiftF5Reset();
@@ -37,61 +37,42 @@ export default function ValentinePage() {
     };
   }, [checkAllLoaded]);
 
-  // Müzik: preload + 2s sonra fade-in ile %50 volume'a ulaş
+  // Fallback: 10s sonra ne olursa olsun loading'i kaldır
+  useEffect(() => {
+    const t = setTimeout(() => setAssetsReady(true), 10000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Müzik: ilk tıklamada fade-in ile %50 volume'a ulaş
   useEffect(() => {
     const audio = new Audio("/seviyora.mp3");
     audio.loop = true;
     audio.volume = 0;
     audioRef.current = audio;
-
-    const onCanPlay = () => {
-      loadedFlags.current.mp3 = true;
-      checkAllLoaded();
-    };
-    audio.addEventListener("canplaythrough", onCanPlay, { once: true });
-    // Fallback: 5s sonra mp3 yüklenmediyse de geç
-    const fallback = setTimeout(onCanPlay, 5000);
-
-    const startMusic = () => {
-      if (audioStarted.current) return;
-      audioStarted.current = true;
-
-      setTimeout(() => {
-        audio.play().then(() => {
-          const fadeDuration = 2000;
-          const steps = 40;
-          const targetVolume = 0.5;
-          const interval = fadeDuration / steps;
-          let step = 0;
-
-          const fadeTimer = setInterval(() => {
-            step++;
-            audio.volume = Math.min(targetVolume, (step / steps) * targetVolume);
-            if (step >= steps) clearInterval(fadeTimer);
-          }, interval);
-        }).catch(() => {
-          audioStarted.current = false;
-        });
-      }, 2000);
-    };
-
-    // Autoplay dene, engellenirse ilk etkileşimde başlat
-    startMusic();
-    const events = ["click", "touchstart", "keydown"] as const;
-    const handler = () => {
-      startMusic();
-      events.forEach((e) => document.removeEventListener(e, handler));
-    };
-    events.forEach((e) => document.addEventListener(e, handler, { once: true }));
-
     return () => {
-      clearTimeout(fallback);
-      audio.removeEventListener("canplaythrough", onCanPlay);
-      events.forEach((e) => document.removeEventListener(e, handler));
       audio.pause();
       audio.src = "";
     };
-  }, [checkAllLoaded]);
+  }, []);
+
+  const tryStartMusic = useCallback(() => {
+    if (audioStarted.current || !audioRef.current) return;
+    audioStarted.current = true;
+    const audio = audioRef.current;
+    audio.play().then(() => {
+      const steps = 40;
+      const targetVolume = 0.5;
+      const interval = 2000 / steps;
+      let step = 0;
+      const fadeTimer = setInterval(() => {
+        step++;
+        audio.volume = Math.min(targetVolume, (step / steps) * targetVolume);
+        if (step >= steps) clearInterval(fadeTimer);
+      }, interval);
+    }).catch(() => {
+      audioStarted.current = false;
+    });
+  }, []);
 
   useEffect(() => {
     setState(loadState());
@@ -194,7 +175,7 @@ export default function ValentinePage() {
 
   // Main scene: questions + bears (hug & heart de burada)
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden">
+    <div className="relative flex h-screen flex-col overflow-hidden" onClick={tryStartMusic}>
       {/* Loading overlay — tüm asset'ler yüklenene kadar */}
       {!assetsReady && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-pink-100 to-red-100 transition-opacity duration-700">
