@@ -15,6 +15,28 @@ export interface FrameAnimatorProps {
   alt?: string;
 }
 
+const BATCH_SIZE = 6;
+
+function loadImage(src: string, retries = 2): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    const tryLoad = () => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => resolve(img);
+      img.onerror = () => {
+        attempt++;
+        if (attempt <= retries) {
+          setTimeout(tryLoad, 500 * attempt);
+        } else {
+          reject(new Error(`Failed to load ${src}`));
+        }
+      };
+    };
+    tryLoad();
+  });
+}
+
 function FrameAnimatorInner({
   basePath,
   frameCount,
@@ -35,30 +57,46 @@ function FrameAnimatorInner({
   const rafRef = useRef<number>(0);
   const startRef = useRef<number>(0);
   const completedRef = useRef(false);
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
-  // ---------- preload ----------
+  // ---------- preload (batched) ----------
   useEffect(() => {
     let cancelled = false;
-    const imgs: HTMLImageElement[] = [];
-    let count = 0;
 
-    for (let i = 0; i < frameCount; i++) {
-      const img = new Image();
+    const srcs = Array.from({ length: frameCount }, (_, i) => {
       const num = String(i).padStart(3, "0");
-      img.src = `${basePath}/frame_${num}.png`;
-      img.onload = () => {
-        count++;
-        if (!cancelled && count === frameCount) {
-          imagesRef.current = imgs;
-          setLoaded(true);
-          onLoaded?.();
+      return `${basePath}/frame_${num}.png`;
+    });
+
+    async function preload() {
+      const results: HTMLImageElement[] = [];
+
+      for (let i = 0; i < srcs.length; i += BATCH_SIZE) {
+        if (cancelled) return;
+        const batch = srcs.slice(i, i + BATCH_SIZE);
+        const imgs = await Promise.all(
+          batch.map((src) => loadImage(src).catch(() => null)),
+        );
+        for (const img of imgs) {
+          results.push(img as HTMLImageElement);
         }
-      };
-      img.onerror = () => {
-        if (!cancelled) setError(true);
-      };
-      imgs.push(img);
+      }
+
+      if (cancelled) return;
+
+      const failCount = results.filter((r) => r === null).length;
+      if (failCount > frameCount * 0.1) {
+        setError(true);
+        return;
+      }
+
+      imagesRef.current = results;
+      setLoaded(true);
+      onLoadedRef.current?.();
     }
+
+    preload();
 
     return () => {
       cancelled = true;
